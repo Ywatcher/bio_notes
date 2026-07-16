@@ -166,3 +166,247 @@ recombination attempt
 ```
 
 The 1984 paper captured the computational shape: stochastic rearrangement with biased target choice and feedback stop conditions \cite{ClaverieLangman1984ComputerView}. Later work supplies the biochemical machinery behind those conditions.
+
+## Evaluation Criteria and Feedback Effects
+
+A useful computational abstraction is that each recombination step produces several partial evaluations, not one global score. These evaluations feed back into different state variables of the developing B cell.
+
+```text
+step output is evaluated by:
+    DNA safety
+    productive gene structure
+    protein folding and receptor assembly
+    receptor signaling strength
+    RAG expression and recombination permission
+    chromatin accessibility and target availability
+    self-reactivity and tolerance
+    survival/proliferation context
+```
+
+Biologically, these are not literal numerical scores. They are molecular states: broken DNA, active kinases, transcription-factor localization, chromatin marks, receptor surface expression, and survival signals. Algorithmically, they behave like a mixture of gates, penalties, weights, and state transitions.
+
+### Criteria-to-Algorithm Map
+
+```text
+DNA break status
+-> update repair_state and cell_cycle_state
+-> pause proliferation while breaks are unresolved
+-> inhibit unsafe receptor-driven cycling
+
+productive vs nonproductive DNA join
+-> update rearrangement_state
+-> continue to protein expression if productive
+-> try another allele or substrate if nonproductive
+
+protein folding and receptor assembly
+-> update receptor_state
+-> pre-BCR/BCR assembly permits signaling
+-> failure leads to retry, developmental arrest, or death
+
+pre-BCR/BCR signal strength
+-> update survival_state, proliferation_state, differentiation_state, and RAG_state
+-> adequate pre-BCR signal advances heavy-chain-positive cells to the light-chain stage
+-> complete BCR signal can mature the cell or trigger tolerance responses
+
+RAG expression and activity
+-> update recombination_permission
+-> high RAG permits more recombination
+-> low RAG reduces or stops recombination
+
+chromatin accessibility and 3D locus architecture
+-> update available_targets and target probabilities
+-> accessible, physically reachable segments are sampled more often
+
+self-reactivity
+-> update tolerance_state and editing_state
+-> strong self-reactivity biases toward receptor editing, anergy, or deletion
+-> acceptable signaling biases toward maturation
+```
+
+This means different feedback signals have different effects. DNA damage is a safety brake. Productive rearrangement is a validity test. Receptor assembly is a functional test. Receptor signaling is a developmental signal. RAG expression is a permission variable. Chromatin accessibility is a search-space constraint. Self-reactivity is a tolerance filter.
+
+## Hard and Soft Constraints
+
+Some criteria act like hard constraints: if they fail, the cell or the current rearrangement path cannot advance normally. Other criteria are soft constraints: they change probabilities, rates, or biases rather than producing an immediate yes/no outcome.
+
+### Harder Constraints
+
+#### RAG availability
+
+Biological process: RAG1/RAG2 are required to initiate V(D)J recombination. If the recombinase is absent or inactive, the cell cannot cut and join V, D, and J segments.
+
+Algorithmic effect:
+
+```text
+if RAG activity == absent:
+    recombination_permission = false
+```
+
+This is hard because the genome-editing operation cannot occur without the enzyme complex. RAG expression is regulated by FOXO1 and by pathways such as PI3K/AKT and mTORC2/AKT2 \cite{AminSchlissel2008Foxo1Rag,Lazorchak2010Sin1mTORC2}.
+
+#### DNA repair after RAG cutting
+
+Biological process: RAG-created double-strand breaks are necessary intermediates, but unresolved breaks are dangerous. ATM-dependent checkpoint pathways detect the breaks, pause unsafe progression, and can suppress pre-BCR signaling or reduce RAG activity until repair occurs \cite{Bednarski2016RAGDSBCheckpoint,OchodnickaMackovicova2016DNARepairRag}.
+
+Algorithmic effect:
+
+```text
+if unresolved_DNA_breaks:
+    cell_cycle_state = paused
+    repair_state = active
+    unsafe_receptor_signaling = inhibited
+    next_recombination_attempt = delayed
+```
+
+This is hard in the sense that normal development should not proceed through proliferation while breaks remain unresolved.
+
+#### Productive reading frame
+
+Biological process: V(D)J joining can preserve or disrupt the reading frame. Out-of-frame joins or joins with stop codons cannot produce a useful immunoglobulin chain.
+
+Algorithmic effect:
+
+```text
+if join_is_out_of_frame:
+    allele_productive = false
+    try_next_available_substrate_or_fail
+```
+
+This is a hard constraint at the level of that allele. The cell may still continue using another allele or secondary rearrangement substrate.
+
+#### Protein assembly
+
+Biological process: A productive gene must make a chain that folds and pairs. A mu heavy chain must pair with surrogate light chain to form pre-BCR. A real light chain must pair with heavy chain to form BCR.
+
+Algorithmic effect:
+
+```text
+if receptor_complex_does_not_assemble:
+    receptor_signal = absent
+    developmental_progression = blocked_or_weakened
+```
+
+This is hard-to-soft depending on degree: complete failure blocks the path; weak assembly may reduce survival or progression probability.
+
+### Softer Constraints
+
+#### Locus accessibility
+
+Biological process: RAG cuts accessible chromatin more efficiently than closed chromatin. Accessibility depends on enhancer activity, transcription, histone modifications, chromatin readers, and developmental stage. BRWD1 helps target recombination to Igk in small pre-B cells \cite{Mandal2015BRWD1Igk}.
+
+Algorithmic effect:
+
+```text
+target_weight[locus] = accessibility(locus)
+more_accessible_locus -> higher recombination probability
+less_accessible_locus -> lower recombination probability
+```
+
+This is soft because an inaccessible locus is not always mathematically impossible, but its probability is strongly reduced. It shapes the search space and contributes to ordered rearrangement.
+
+#### 3D genome architecture
+
+Biological process: Ig loci are large. Distant V segments must physically contact D/J or J regions. Looping, extrusion, and recombination centers make some gene segments more likely to meet than others. Igh and Igk use different folding principles in pro-B and pre-B cells \cite{Hill2023IghIgkFolding}.
+
+Algorithmic effect:
+
+```text
+segment_weight[V_gene] = contact_frequency_with_recombination_center
+```
+
+This is soft because it biases which segments are sampled. It does not directly select the future best antigen binder, but it shapes the repertoire available for later selection.
+
+#### RAG expression level
+
+Biological process: RAG is not simply on or off. FOXO1 promotes Rag1/Rag2 transcription; PI3K/AKT signaling suppresses FOXO1; other regulators tune the Rag locus \cite{AminSchlissel2008Foxo1Rag,Novak2010MAPKPI3KRag,Schulz2012Gfi1bRag}.
+
+Algorithmic effect:
+
+```text
+recombination_rate = f(RAG_expression, RAG_activity)
+```
+
+This is soft when RAG is reduced rather than absent. Lower RAG means fewer or slower recombination attempts, which helps prevent endless DNA cutting after a receptor has formed.
+
+#### Pre-BCR signal strength
+
+Biological process: A usable heavy chain forms pre-BCR with surrogate light chain. The pre-BCR signals through receptor-associated pathways and promotes survival, expansion, and transition to light-chain recombination. Some signals for maturation and allelic exclusion are separable \cite{Iritani1999DistinctSignals,Wen2004PLCgamma1}.
+
+Algorithmic effect:
+
+```text
+heavy_chain_candidate_weight = preBCR_signal_strength
+if signal is adequate:
+    survival_probability increases
+    proliferation_probability increases
+    IgH_rearrangement decreases
+    light_chain_stage begins
+```
+
+This is a soft selection criterion over heavy-chain candidates. It favors heavy chains that can fold, pair, and signal, which are useful proxies for developable receptors.
+
+#### BCR surface expression and tonic signaling
+
+Biological process: A complete BCR must be expressed on the cell surface and produce appropriate basal or antigen-driven signals. Too little signal may fail to support survival; too much signal, especially from self-antigen, can trigger tolerance mechanisms.
+
+Algorithmic effect:
+
+```text
+if BCR_surface_expression is adequate and tolerance is passed:
+    maturation_probability increases
+else:
+    editing_or_death_probability increases
+```
+
+This is soft because surface expression and signaling intensity are graded.
+
+#### Self-reactivity
+
+Biological process: Strong binding to self-antigen in immature B cells can induce receptor editing, anergy, or deletion. This is not simply a rejection rule; many cells first attempt to revise the receptor through secondary light-chain rearrangement \cite{Coffre2016miRNAReceptorEditing,Li2026LinearRAGScanning}.
+
+Algorithmic effect:
+
+```text
+if self_reactivity is high:
+    editing_probability increases
+    deletion_probability increases
+    maturation_probability decreases
+elif self_reactivity is low:
+    maturation_probability increases
+```
+
+This is a mixed hard/soft constraint. Very strong self-reactivity can behave like a hard fail, but intermediate signals can bias the cell toward editing or anergy.
+
+#### Survival and proliferation context
+
+Biological process: Developing cells receive survival and proliferation signals from pre-BCR/BCR pathways, cytokines, stromal niches, and developmental state. Cells that pass checkpoints may expand, while cells that fail signals are lost.
+
+Algorithmic effect:
+
+```text
+clone_weight = clone_weight * proliferation_factor
+cell_survival = probability_from_checkpoint_signals
+```
+
+This gives the process a population-selection character: successful candidates are not only accepted, they may be amplified.
+
+## Relation to Evolutionary Algorithms
+
+The process resembles an evolutionary algorithm in a limited sense:
+
+```text
+generate variants -> evaluate candidates -> amplify some -> discard or edit others
+```
+
+But early B-cell development is not optimizing one numerical fitness function. It is building a safe and diverse starting repertoire. The early soft criteria mostly select proxies for immune usefulness:
+
+```text
+safe genome
+functional receptor assembly
+single-receptor expression
+non-self-reactivity
+developmental efficiency
+broad diversity
+```
+
+They do not directly select the best receptor for a future pathogen. That stronger performance optimization happens later in germinal centers, where antigen-binding B cells undergo mutation, compete for antigen and T-cell help, and higher-affinity clones expand. Thus, early feedback shapes the search space and starting population; later antigen-driven selection optimizes performance against a specific challenge.
