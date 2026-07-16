@@ -2,6 +2,17 @@
 
 This note turns the scale-based training idea from Karim et al. 2024, *Deconstructing synthetic biology across scales*, into a practical workflow for reading biological engineering papers with an agent. The goal is not only to summarize papers, but to extract the engineering problem, the design choice, the scale where the intervention acts, the scale where consequences appear, and the measurements that support the claim.
 
+## Task Types
+
+The agent's work splits into two kinds of task. This split is provisional — refine it once real use shows what's actually needed.
+
+- **Explanatory task**: the agent explains, discusses, or answers questions about a paper using the reading framework and questions below. Output is conversation only — nothing is written to a file unless separately requested.
+- **Generation task**: the agent produces or updates a note/case file using the schema and templates below. Explanation stays minimal — just enough to justify the schema's own `*_reason` fields (`scale_reason`, `reason_for_depth`, `comparison_reason`), not a teaching pass.
+  - **Single paper**: summarize the paper on the core reading questions (engineered system, decision, scale map, measurements, constraints, comparison, etc.).
+  - **Batch** (multiple papers at once, e.g. a topic search): instead of separate per-paper summaries, give a comparison across the works on the same key questions — where they agree, where they diverge, and on which scale.
+
+Default behavior when the task type isn't stated: the agent should ask which type is intended before proceeding, rather than guessing.
+
 ## Core Reading Principle
 
 For each paper, ask:
@@ -542,6 +553,54 @@ Use a staged workflow rather than one large prompt.
 ## Design-build-test-learn interpretation
 
 ## Follow-up papers
+```
+
+## Example Directory Structure (current)
+
+This reflects the structure actually in use, reusing note1's existing topic-folder conventions rather than a separate casebook tree. Batch/candidate papers live in `rough_sources/`, single-paper survey notes get promoted to their own file once read, batch comparisons are a single file created on demand, and anchor projects only appear once a paper earns that depth.
+
+```text
+note1/
+  instructions_for_learning/
+    biological_engineering_paper_agent.md
+    anchor_depth_structure_proposal.md
+    agent_runs/                              created only when comparing agents/models
+      2026-07-16_paper_slug_sonnet/
+      2026-07-16_paper_slug_opus/
+
+  immunoglobin_rearrangement/
+    README.md
+    references.bib
+    1984_model_note.md
+    feedback_loop_note.md
+    bcr_loop_substances_and_processes.md
+    b_cell_engineering_comparison.md          batch generation task output
+
+    b_cell_engineering_papers/                promoted single-paper survey notes
+      nahmad2020_note.md
+      huang2020_note.md
+      kuhlmann2025_note.md
+      leonard2025_note.md
+      boucher2025_note.md
+      johnson2018_note.md
+      majors2012_note.md
+      liu2025_note.md
+      hill2026_note.md
+
+    rough_sources/
+      b_cell_engineering_2026-07-16/
+        README.md
+        source-notes.md
+        references.bib
+      immunoglobulin_rearrangement_feedback_2026-07-16/
+      b_cell_mechanisms_2026-07-16/
+
+    anchor_projects/                          not yet created; appears once a paper
+      <paper_slug>/                           is promoted to anchor depth
+        case.yaml
+        notes.md
+        data/
+        scripts/
 ```
 
 ## Minimal First Version
